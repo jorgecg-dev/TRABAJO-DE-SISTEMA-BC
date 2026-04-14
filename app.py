@@ -2,6 +2,7 @@
 from flask import Flask, request, render_template, session, redirect, send_file, send_from_directory
 import psycopg2
 import os
+import urllib.parse as urlparse
 import qrcode
 import zipfile
 import locale
@@ -41,7 +42,17 @@ def ejecutar_query(query, params=None, fetch=False):
     return data
 
 def get_connection():
-    return psycopg2.connect(os.getenv("DATABASE_URL"), sslmode='require')
+    url = urlparse.urlparse(os.environ["DATABASE_URL"])
+
+    conn = psycopg2.connect(
+        dbname=url.path[1:],
+        user=url.username,
+        password=url.password,
+        host=url.hostname,
+        port=url.port,
+        sslmode='require'
+    )
+    return conn
 
 def numero_a_letras(n):
     numeros = {
