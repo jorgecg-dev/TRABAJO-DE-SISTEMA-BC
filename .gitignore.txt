@@ -1,0 +1,14 @@
+certificados/*
+!certificados/.gitkeep
+
+fotos/*
+!fotos/.gitkeep
+
+qr/*
+!qr/.gitkeep
+
+salida/*
+!salida/.gitkeep
+
+temp/*
+!temp/.gitkeep
