@@ -1,4 +1,3 @@
-
 from flask import Flask, request, render_template, session, redirect, send_file, send_from_directory
 import psycopg2
 import os
@@ -12,6 +11,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from functools import wraps
 from flask import session, redirect
+from flask import jsonify
 
 BASE_DIR = os.path.dirname(__file__)
 ruta_fuente = os.path.join(BASE_DIR, "DejaVuSans-Bold.ttf")
@@ -42,9 +42,14 @@ def ejecutar_query(query, params=None, fetch=False):
     return data
 
 def get_connection():
-    url = urlparse.urlparse(os.environ["DATABASE_URL"])
+    database_url = os.environ.get("DATABASE_URL")
 
-    conn = psycopg2.connect(
+    if not database_url:
+        raise Exception("DATABASE_URL no está configurado")
+
+    url = urlparse.urlparse(database_url)
+
+    return psycopg2.connect(
         dbname=url.path[1:],
         user=url.username,
         password=url.password,
@@ -52,7 +57,6 @@ def get_connection():
         port=url.port,
         sslmode='require'
     )
-    return conn
 
 def numero_a_letras(n):
     numeros = {
@@ -297,7 +301,7 @@ def registrar():
             return "DNI inválido (debe tener 8 o 9 digitos)"
         
         # GENERAR QR
-        url = f"http://127.0.0.1:5000/verificar/{dni}"
+        url = f"http://certificados-app-pj4m/verificar/{dni}"
         img = qrcode.make(url)
         ruta_qr = f"qr/{dni}.png"
         qr_filename = f"{dni}.png"
@@ -1036,7 +1040,7 @@ def carga_masiva():
                     # ======================
                     # GENERAR QR
                     # ======================
-                    url = f"http://127.0.0.1:5000/verificar/{dni}"
+                    url = f"http://certificados-app-pj4m/verificar/{dni}"
                     img = qrcode.make(url)
                     ruta_qr = f"qr/{dni}.png"
                     qr_filename = f"{dni}.png"
@@ -1346,7 +1350,7 @@ def certificados_doble():
 
             # ===== GENERAR QR AUTOMÁTICO =====
             try:
-                url = f"http://127.0.0.1:5000/verificar/{a['dni']}"
+                url = f"http://certificados-app-pj4m/verificar/{a['dni']}"
 
                 qr = qrcode.make(url)
                 qr = qr.convert("RGB")
@@ -1663,12 +1667,6 @@ def certificados_doble():
 @login_required
 def descargar_archivo(filename):
     return send_from_directory('salida', filename)
-try:
-    conn = get_connection()
-    print("Conectado a PostgreSQL")
-    conn.close()
-except Exception as e: 
-    print("Error de conexión:", e)
 
 @app.route("/subir_pdf/<dni>/<int:index>", methods=["POST"])
 @login_required
@@ -1731,3 +1729,9 @@ if __name__ == "__main__":
     import os
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
+
+os.makedirs("qr", exist_ok=True)
+os.makedirs("certificados", exist_ok=True)
+os.makedirs("temp", exist_ok=True)
+os.makedirs("salida", exist_ok=True)
+os.makedirs("fotos", exist_ok=True)
