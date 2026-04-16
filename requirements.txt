@@ -1,7 +1,8 @@
-flask
+Flask
+gunicorn
 psycopg2-binary
 qrcode
-pillow
 pandas
+openpyxl
 reportlab
-gunicorn
+Pillow

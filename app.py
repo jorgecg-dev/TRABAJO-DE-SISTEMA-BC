@@ -12,7 +12,6 @@ from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime
 import uuid
 from io import BytesIO
-from flask import send_file
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ruta_fuente = os.path.join(BASE_DIR, "DejaVuSans-Bold.ttf")
