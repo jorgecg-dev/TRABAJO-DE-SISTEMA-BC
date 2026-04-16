@@ -11,6 +11,8 @@ from functools import wraps
 from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime
 import uuid
+from io import BytesIO
+from flask import send_file
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ruta_fuente = os.path.join(BASE_DIR, "DejaVuSans-Bold.ttf")
@@ -19,7 +21,6 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev_key")
 
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")
-
 
 def ensure_dirs():
     os.makedirs(os.path.join(BASE_DIR, "qr"), exist_ok=True)
@@ -106,7 +107,7 @@ try:
 except Exception:
     pass
 
-def generar_certificado(nombre, qr_path, output_path):
+def generar_certificado(nombre, dni_qr, output_path):
     ruta_base = os.path.join(BASE_DIR, "certificado_base.jpg")
     base = Image.open(ruta_base)
     draw = ImageDraw.Draw(base)
@@ -144,10 +145,14 @@ def generar_certificado(nombre, qr_path, output_path):
 
     draw.text((x_fecha, y_fecha), texto_fecha, fill="black", font=font_fecha)
 
-    qr_completo = os.path.join(BASE_DIR, "qr", qr_path)
-    if os.path.exists(qr_completo):
-        qr = Image.open(qr_completo).resize((140, 140))
-        base.paste(qr, (30, base.height - 170))
+    if PUBLIC_BASE_URL:
+        url_qr = f"{PUBLIC_BASE_URL}/verificar/{dni_qr}"
+    else:
+        url_qr = f"http://127.0.0.1:5000/verificar/{dni_qr}"
+
+    qr = qrcode.make(url_qr).convert("RGB")
+    qr = qr.resize((140, 140))
+    base.paste(qr, (30, base.height - 170))
 
     os.makedirs(os.path.join(BASE_DIR, "certificados"), exist_ok=True)
 
@@ -163,7 +168,7 @@ def generar_certificados_grupo(nombre_evento, promocion, sede):
     # OBTENER ALUMNOS + PROGRAMAS
     # =========================
     cur.execute("""
-        SELECT a.nombre, a.dni, p.qr
+        SELECT a.nombre, a.dni
         FROM alumnos a
         JOIN programas p ON a.dni = p.dni
         WHERE p.nombre = %s
@@ -173,7 +178,7 @@ def generar_certificados_grupo(nombre_evento, promocion, sede):
 
     datos = cur.fetchall()
 
-    for nombre, dni, qr in datos:
+    for nombre, dni in datos:
 
         # =========================
         # GENERAR NOMBRE ARCHIVO
@@ -184,7 +189,7 @@ def generar_certificados_grupo(nombre_evento, promocion, sede):
         # =========================
         # GENERAR CERTIFICADO
         # =========================
-        generar_certificado(nombre, qr, output)
+        generar_certificado(nombre, dni, output)
 
         # =========================
         # GUARDAR PDF EN BD
@@ -279,15 +284,7 @@ def registrar():
             if not dni.isdigit() or len(dni) not in [8, 9]:
                 return jsonify({"error": "DNI inválido (debe tener 8 o 9 dígitos)"}), 400
 
-            if PUBLIC_BASE_URL:
-                url = f"{PUBLIC_BASE_URL}/verificar/{dni}"
-            else:
-                url = f"/verificar/{dni}"
-
-            img = qrcode.make(url)
-            qr_filename = f"{dni}.png"
-            ruta_qr = os.path.join(BASE_DIR, "qr", qr_filename)
-            img.save(ruta_qr)
+            qr_filename = dni
 
             ruta_pdf_bd = ""
 
@@ -440,25 +437,6 @@ def descargar_pdf(filename):
             return "Archivo no autorizado"
 
         return send_from_directory(os.path.join(BASE_DIR, 'certificados'), filename)
-
-    finally:
-        cur.close()
-        conn.close()
-
-@app.route('/qr/<path:filename>')
-@login_required
-def ver_qr(filename):
-    conn = get_connection()
-    cur = conn.cursor()
-
-    try:
-        cur.execute("SELECT 1 FROM programas WHERE qr = %s", (filename,))
-        existe = cur.fetchone()
-
-        if not existe:
-            return "QR no autorizado"
-
-        return send_from_directory(os.path.join(BASE_DIR, 'qr'), filename)
 
     finally:
         cur.close()
@@ -1025,14 +1003,7 @@ def carga_masiva():
                     dni = str(int(row["DNI"]))
                     nombre = limpiar_texto(row["NOMBRE"])
 
-                    # ======================
-                    # GENERAR QR
-                    # ======================
-                    url = f"http://certificados-app-pj4m.onrender.com/verificar/{dni}"
-                    img = qrcode.make(url)
-                    qr_filename = f"{dni}.png"
-                    ruta_qr = os.path.join(BASE_DIR, "qr", qr_filename)
-                    img.save(ruta_qr)
+                    qr_filename = dni
 
                     # ======================
                     # TIPO EVENTO
@@ -1708,6 +1679,24 @@ def subir_pdf(dni, index):
     conn.close()
 
     return redirect(f"/verificar/{dni}")
+
+@app.route("/qr_dinamico/<dni>")
+def qr_dinamico(dni):
+    if not dni.isdigit() or len(dni) not in [8, 9]:
+        return "DNI inválido", 400
+
+    if PUBLIC_BASE_URL:
+        url = f"{PUBLIC_BASE_URL}/verificar/{dni}"
+    else:
+        url = request.host_url.rstrip("/") + f"/verificar/{dni}"
+
+    img = qrcode.make(url)
+
+    buffer = BytesIO()
+    img.save(buffer, format="PNG")
+    buffer.seek(0)
+
+    return send_file(buffer, mimetype="image/png")
 
 # ================================
 # EJECUTAR
