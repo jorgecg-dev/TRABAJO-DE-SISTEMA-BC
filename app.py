@@ -12,10 +12,10 @@ from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime
 import uuid
 
-BASE_DIR = os.path.dirname(os.path.abspath(_file_))
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ruta_fuente = os.path.join(BASE_DIR, "DejaVuSans-Bold.ttf")
 
-app = Flask(_name_)
+app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev_key")
 
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")
